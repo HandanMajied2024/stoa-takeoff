@@ -102,6 +102,9 @@ async function openProject(path) {
   $("#project-title-m").textContent = name;
   $("#interp-pill").textContent = b.interpreter === "claude" ? "Chat: Claude + engine" : "Chat: keyword parser";
   $("#interp-dot").classList.toggle("on", b.interpreter === "claude");
+  // hosted demo: prepared drawings only (importing needs the local version), and credit the data
+  $$(".sidebar .import, .mobile-top label.icon-btn").forEach((el) => el.classList.toggle("hidden", !!b.demo));
+  if (b.demo) $("#interp-pill").textContent += " · demo";
   setupLevels();
   renderToggles();
   drawPlan(true);
@@ -498,6 +501,7 @@ function renderTakeoff() {
     </tbody></table>
     <div class="panel-note">${s.elements} elements read from <span class="mono">${esc(S.b.source_type)}</span>. Click a row to see it on the plan.
       ${S.b.source_type === "raster" ? " Scans have no verified scale, so areas are not given." : ""}</div>
+    ${S.b.credit ? `<div class="panel-note">Drawing: ${esc(S.b.credit)}</div>` : ""}
     <div class="pane-actions"><button class="btn" id="export-csv">${icon("download")}Export element list (CSV)</button></div>`;
   $$("#takeoff tr.clickable").forEach((tr) => tr.addEventListener("click", () => {
     const r = s.rows[tr.dataset.i];

@@ -7,16 +7,17 @@ from __future__ import annotations
 
 import collections
 import faulthandler
-import signal
 import json
 import math
+import os
 import re
 import shutil
+import signal
+import time
 from functools import lru_cache
 from pathlib import Path
 
-import ezdxf  # import on the main thread: a first import inside a request thread deadlocks
-from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi import FastAPI, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -28,6 +29,12 @@ ROOT = Path(__file__).resolve().parent.parent
 DATASET = Path.home() / "Downloads/junction-dataset"
 UPLOADS = ROOT / "data_cache" / "uploads"
 WEB = Path(__file__).resolve().parent / "web"
+# Hosted demo: pre-extracted drawings shipped with the app (see deploy/build_demo.py); no dataset, no heavy libs.
+DEMO = Path(os.environ["TAKEOFF_DEMO_DIR"]) if os.environ.get("TAKEOFF_DEMO_DIR") else None
+MANIFEST = json.loads((DEMO / "manifest.json").read_text()) if DEMO else None
+
+if not DEMO:
+    import ezdxf  # import on the main thread: a first import inside a request thread deadlocks
 
 faulthandler.register(signal.SIGUSR1)  # `kill -USR1 <pid>` dumps all thread stacks
 
@@ -58,6 +65,8 @@ def _rel(p: Path) -> str:
 
 @lru_cache(maxsize=1)
 def projects() -> list[dict]:
+    if DEMO:
+        return MANIFEST["projects"]
     out = []
     cache = ROOT / "data_cache" / "buildings"
     for f in sorted(cache.glob("swiss_dwellings__*.json"))[:40]:
@@ -81,14 +90,26 @@ def projects() -> list[dict]:
 
 
 def _check(path: str) -> Path:
+    if DEMO:
+        if path not in _demo_index():
+            raise HTTPException(404, "unknown drawing")
+        return Path(path)
     p = Path(path).resolve()
     if not (p.is_relative_to(DATASET.resolve()) or p.is_relative_to(UPLOADS.resolve())):
         raise HTTPException(403, "path outside the dataset")
     return p
 
 
-@lru_cache(maxsize=16)
+@lru_cache(maxsize=1)
+def _demo_index() -> dict:
+    return {p["path"]: p for p in MANIFEST["projects"]}
+
+
+@lru_cache(maxsize=64)
 def _raw(path: str):
+    if DEMO:
+        from .model import Building
+        return Building.model_validate_json((DEMO / "buildings" / f"{_demo_index()[path]['file']}.json").read_text())
     b = pipeline.load_raw(path)
     if b is None:
         raise HTTPException(422, "No extractor for this drawing type yet")
@@ -132,10 +153,16 @@ def api_building(path: str):
                  "background": f"/api/background?path={path}" if b.source_type in ("raster", "swiss_dxf") else None,
                  "background_kind": "image" if b.source_type == "raster" else ("vector" if b.source_type == "swiss_dxf" else None)}
     if b.source_type == "raster":
-        import cv2
-        h, w = cv2.imread(b.source_file, cv2.IMREAD_GRAYSCALE).shape[:2]
-        d["view"]["image_size"] = [w, h]
-    d["interpreter"] = "claude" if llm.os.environ.get("ANTHROPIC_API_KEY") else "keyword parser"
+        if DEMO:
+            d["view"]["image_size"] = _demo_index()[path]["image_size"]
+        else:
+            import cv2
+            h, w = cv2.imread(b.source_file, cv2.IMREAD_GRAYSCALE).shape[:2]
+            d["view"]["image_size"] = [w, h]
+    d["interpreter"] = "claude" if os.environ.get("ANTHROPIC_API_KEY") else "keyword parser"
+    d["demo"] = bool(DEMO)
+    if DEMO:
+        d["credit"] = _demo_index()[path].get("credit")
     return JSONResponse(d)
 
 
@@ -190,6 +217,14 @@ def _dxf_paths(dxf: str) -> dict:
 def api_background(path: str):
     p = _check(path)
     b = _building(path)
+    if DEMO:
+        f = _demo_index()[path]["file"]
+        if b.source_type == "raster":
+            return FileResponse(DEMO / "bg" / f"{f}.png", headers={"Cache-Control": "public, max-age=86400"})
+        if b.source_type == "swiss_dxf":
+            return FileResponse(DEMO / "bg" / f"{f}.json", media_type="application/json",
+                                headers={"Cache-Control": "public, max-age=86400"})
+        raise HTTPException(404, "no background for this source")
     if b.source_type == "raster":
         return FileResponse(b.source_file)
     if b.source_type == "swiss_dxf":
@@ -200,6 +235,8 @@ def api_background(path: str):
 @app.get("/api/original")
 def api_original(path: str):
     """The drawing as delivered (PNG/PDF), for side-by-side checking."""
+    if DEMO:
+        raise HTTPException(404)
     p = _check(path)
     for cand in (p.with_suffix(".png"), p.with_suffix(".pdf"), p):
         if cand.exists() and cand.suffix.lower() in (".png", ".jpg", ".jpeg", ".pdf"):
@@ -214,9 +251,30 @@ class Ask(BaseModel):
     height_m: float | None = None
 
 
+# public demo: keep strangers from running up the API bill (per instance; a stopgap, not real auth)
+ASK_PER_HOUR = int(os.environ.get("TAKEOFF_ASK_PER_HOUR", "40"))
+ASK_PER_DAY = int(os.environ.get("TAKEOFF_ASK_PER_DAY", "800"))
+_asks: dict[str, list[float]] = collections.defaultdict(list)
+_day: list[float] = []
+
+
+def _rate_limit(ip: str):
+    now = time.time()
+    _asks[ip] = [t for t in _asks[ip] if now - t < 3600]
+    _day[:] = [t for t in _day if now - t < 86400]
+    if len(_asks[ip]) >= ASK_PER_HOUR or len(_day) >= ASK_PER_DAY:
+        raise HTTPException(429, "Demo question limit reached, try again later.")
+    _asks[ip].append(now)
+    _day.append(now)
+
+
 @app.post("/api/ask")
-def api_ask(req: Ask):
+def api_ask(req: Ask, request: Request):
     _check(req.path)
+    req.question = req.question[:500]
+    req.history = req.history[-6:]
+    if DEMO:
+        _rate_limit((request.headers.get("x-forwarded-for") or request.client.host or "?").split(",")[0].strip())
     b = _building(req.path)
     interp, who = llm.interpret(b, req.question, req.history)
     if not interp.understood or not interp.items:
@@ -274,6 +332,8 @@ def api_delete_rule(rule_id: str):
 
 @app.post("/api/upload")
 async def api_upload(file: UploadFile):
+    if DEMO:
+        raise HTTPException(403, "The hosted demo uses prepared drawings. Importing your own runs in the local version.")
     name = re.sub(r"[^A-Za-z0-9._-]", "_", file.filename or "drawing")
     if Path(name).suffix.lower() not in (".png", ".jpg", ".jpeg", ".dxf", ".ifc", ".pdf"):
         raise HTTPException(415, "Upload a PNG, JPG, PDF, DXF or IFC file")

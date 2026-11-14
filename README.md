@@ -55,7 +55,22 @@ Published VLM baselines on similar counting tasks score ~34–55%.
 ## Web app
 
 `uv run uvicorn takeoff.server:app --port 8765`, then open http://localhost:8765. Run it from a terminal:
-an app sandbox without Downloads access will hang reading the dataset.
+an app sandbox without Downloads access will hang reading the dataset. Put `ANTHROPIC_API_KEY=...` in a
+`.env` file (git-ignored) to let Claude read chat questions.
+
+### Hosted demo (Vercel)
+
+The full pipeline needs PyTorch, IfcOpenShell and the dataset, which do not fit a serverless function. The
+demo ships 22 pre-extracted drawings and runs only the light parts (chat, engine, rules, reviews):
+
+```bash
+uv run python -m deploy.build_demo        # -> dist/vercel (no local paths, ~5 MB)
+cd dist/vercel && vercel deploy --prod
+```
+
+Set `ANTHROPIC_API_KEY` in the Vercel project's environment variables. Questions are rate-limited
+(`TAKEOFF_ASK_PER_HOUR`, `TAKEOFF_ASK_PER_DAY`); reviews and learned rules reset when an instance restarts.
+Data and model licences: [DATA_LICENSES.md](DATA_LICENSES.md).
 
 ## Things we learned from the data
 

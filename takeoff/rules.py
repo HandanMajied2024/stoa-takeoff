@@ -12,6 +12,7 @@ Everything is deterministic and inspectable: models/learned_rules.json and data_
 from __future__ import annotations
 
 import json
+import os
 import threading
 import time
 import uuid
@@ -22,8 +23,14 @@ from shapely.geometry import Polygon
 from .model import Building, Element
 
 ROOT = Path(__file__).resolve().parent.parent
-RULES_FILE = ROOT / "models" / "learned_rules.json"
-REVIEWS_FILE = ROOT / "data_cache" / "reviews.jsonl"
+RULES_FILE = Path(os.environ.get("TAKEOFF_RULES_FILE", ROOT / "models" / "learned_rules.json"))
+REVIEWS_FILE = Path(os.environ.get("TAKEOFF_REVIEWS_FILE", ROOT / "data_cache" / "reviews.jsonl"))
+
+
+def drawing_key(drawing: str) -> str:
+    """Rules remember which drawings confirmed them by a short, machine-independent key (no local paths)."""
+    parts = Path(drawing).parts
+    return "/".join(parts[-2:]) if len(parts) >= 2 else drawing
 WET = {"wc", "bathtub", "shower", "washbasin"}
 TRUSTED = 0.9
 MIN_DRAWINGS = 3   # a rule is trusted only after confirmations on this many different drawings
@@ -56,8 +63,9 @@ def trusted(r: dict) -> bool:
 def _confirm(r: dict, drawing: str):
     r["support"] += 1
     r.setdefault("drawings", [])
-    if drawing not in r["drawings"]:
-        r["drawings"].append(drawing)
+    key = drawing_key(drawing)
+    if key not in r["drawings"]:
+        r["drawings"].append(key)
 
 
 def confidence(r: dict) -> float:
@@ -259,7 +267,7 @@ def _learn(rules: list[dict], f: dict, label: str, drawing: str) -> str:
     when = dict(sig)
     if f["area"] is not None:
         when.update(area_min=round(f["area"] * 0.75, 3), area_max=round(f["area"] * 1.25, 3))
-    r = {"id": "rule-" + uuid.uuid4().hex[:8], "label": label, "origin": "review", "support": 1, "rejected": 0, "drawings": [drawing],
+    r = {"id": "rule-" + uuid.uuid4().hex[:8], "label": label, "origin": "review", "support": 1, "rejected": 0, "drawings": [drawing_key(drawing)],
          "when": when, "why": "learned from a review", "created": time.time()}
     rules.append(r)
     return f"learned rule '{describe(r)}'"

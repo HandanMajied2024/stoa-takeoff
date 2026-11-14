@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#141b1d">
+<title>Takeoff</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="app" data-view="plan">
+
+  <!-- sidebar (desktop) -->
+  <aside class="sidebar">
+    <button class="project-switch" id="btn-projects" title="Change drawing">
+      <span class="logo" aria-hidden="true"><i data-icon="logo"></i></span>
+      <span class="project-name" id="project-title">Pick a drawing</span>
+      <i data-icon="chevron"></i>
+    </button>
+    <div class="nav-label">Drawing</div>
+    <nav class="nav" id="nav">
+      <button class="nav-item active" data-view="plan"><i data-icon="map"></i><span>Plan</span></button>
+      <button class="nav-item" data-view="3d"><i data-icon="box"></i><span>3D model</span></button>
+      <button class="nav-item" data-view="takeoff"><i data-icon="list"></i><span>Takeoff</span></button>
+      <button class="nav-item" data-view="review"><i data-icon="check"></i><span>Review</span><b class="count" id="review-badge">0</b></button>
+      <button class="nav-item" data-view="rules"><i data-icon="sparkles"></i><span>Learned rules</span><b class="count muted" id="rules-badge">0</b></button>
+    </nav>
+    <div class="grow"></div>
+    <label class="nav-item import"><i data-icon="upload"></i><span>Import drawing</span>
+      <input id="upload" type="file" accept=".png,.jpg,.jpeg,.pdf,.dxf,.ifc" hidden></label>
+    <div class="sidebar-foot"><span class="dot" id="interp-dot"></span><span id="interp-pill">Chat: keyword parser</span></div>
+  </aside>
+
+  <!-- top bar (phone) -->
+  <header class="mobile-top">
+    <button class="project-switch" id="btn-projects-m">
+      <span class="logo" aria-hidden="true"><i data-icon="logo"></i></span>
+      <span class="project-name" id="project-title-m">Pick a drawing</span>
+      <i data-icon="chevron"></i>
+    </button>
+    <label class="icon-btn" title="Import drawing"><i data-icon="upload"></i>
+      <input id="upload-m" type="file" accept=".png,.jpg,.jpeg,.pdf,.dxf,.ifc" hidden></label>
+  </header>
+
+  <main class="main">
+    <section class="stats" id="stats"></section>
+
+    <section class="card stage">
+      <header class="stage-head">
+        <div>
+          <h2 id="view-title">Plan</h2>
+          <p id="view-sub" class="sub">Every element is clickable and traced to the drawing</p>
+        </div>
+        <div class="stage-tools" id="plan-tools">
+          <select id="level-select" class="hidden" aria-label="Level"></select>
+          <div class="layer-toggles" id="layer-toggles"></div>
+          <button class="icon-btn" id="btn-fit" title="Fit to screen"><i data-icon="fit"></i></button>
+        </div>
+        <div class="stage-tools hidden" id="three-tools">
+          <label class="height">Wall height <input id="height" type="number" step="0.1" min="2" max="6" value="2.6"> m</label>
+          <span class="tag warn">assumed</span>
+        </div>
+      </header>
+      <div class="stage-body">
+        <div id="plan-view" class="pane plan-view">
+          <svg id="plan-svg" xmlns="http://www.w3.org/2000/svg"><g id="bg-layer"></g><g id="el-layer"></g></svg>
+          <div id="plan-empty" class="empty">Pick a drawing, or import one.</div>
+          <div id="plan-loading" class="loading hidden"><div class="spinner"></div><span>Reading drawing…</span></div>
+          <div id="inspector" class="inspector hidden"></div>
+        </div>
+        <div id="three-view" class="pane hidden"><div id="three-canvas"></div></div>
+        <div id="takeoff" class="pane scroll hidden"></div>
+        <div id="review" class="pane scroll hidden"></div>
+        <div id="rules" class="pane scroll hidden"></div>
+      </div>
+    </section>
+  </main>
+
+  <aside class="card chat" id="chat">
+    <header class="chat-head"><i data-icon="chat"></i><h2>Ask</h2><span class="sub">answers computed from the drawing</span></header>
+    <div id="messages" class="messages"></div>
+    <form id="ask-form" class="ask-form">
+      <input id="ask-input" placeholder="Ask about this drawing…" autocomplete="off">
+      <button type="submit" class="send" aria-label="Ask"><i data-icon="send"></i></button>
+    </form>
+  </aside>
+
+  <nav class="bottom-nav">
+    <button data-view="plan" class="active"><i data-icon="map"></i><span>Plan</span></button>
+    <button data-view="3d"><i data-icon="box"></i><span>3D</span></button>
+    <button data-view="chat"><i data-icon="chat"></i><span>Ask</span></button>
+    <button data-view="takeoff"><i data-icon="list"></i><span>Takeoff</span></button>
+    <button data-view="review"><i data-icon="check"></i><span>Review</span><b class="count" id="review-badge-m">0</b></button>
+  </nav>
+
+  <!-- drawing picker -->
+  <div class="picker hidden" id="picker">
+    <div class="picker-card">
+      <div class="picker-search"><i data-icon="search"></i><input id="search" type="search" placeholder="Search drawings" autocomplete="off">
+        <button class="icon-btn" id="picker-close" aria-label="Close"><i data-icon="x"></i></button></div>
+      <div id="project-list" class="project-list"></div>
+    </div>
+  </div>
+</div>
+<script type="module" src="app.js"></script>
+</body>
+</html>

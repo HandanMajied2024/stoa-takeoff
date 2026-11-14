@@ -1,0 +1,21 @@
+{
+ "rules": [],
+ "seed_state": {
+  "seed-shaft": {
+   "support": 38,
+   "rejected": 0,
+   "drawings": [
+    "swiss_dwellings/site1000_bldg2082_floor9385.png",
+    "swiss_dwellings/site1001_bldg2083_floor9389.png",
+    "swiss_dwellings/site1002_bldg2084_floor9393.png"
+   ]
+  },
+  "seed-bathroom": {
+   "support": 6,
+   "rejected": 0,
+   "drawings": [
+    "swiss_dwellings/site1000_bldg2082_floor9385.png"
+   ]
+  }
+ }
+}

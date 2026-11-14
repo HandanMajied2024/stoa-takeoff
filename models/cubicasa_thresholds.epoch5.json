@@ -1,0 +1,16 @@
+{
+ "balcony": 0.45,
+ "bath": 0.4,
+ "bathtub": 0.7,
+ "bedroom": 0.35,
+ "door": 0.45,
+ "floorplan": 0.4,
+ "kitchen": 0.2,
+ "sauna_room": 0.1,
+ "sauna_stove": 0.45,
+ "shower": 0.15,
+ "sink": 0.25,
+ "toilet": 0.45,
+ "wc_room": 0.1,
+ "window": 0.45
+}

@@ -1,0 +1,8 @@
+.venv/
+data_cache/
+scratch/
+eval/failures.jsonl
+__pycache__/
+*.pyc
+.DS_Store
+.env

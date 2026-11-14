@@ -1,0 +1,88 @@
+{
+ "('door', None)": {
+  "val_acc": 0.6477,
+  "n": 281,
+  "thresholds": {
+   "door": 0.4
+  }
+ },
+ "('window', None)": {
+  "val_acc": 0.5471,
+  "n": 382,
+  "thresholds": {
+   "window": 0.45
+  }
+ },
+ "('fixture', 'wc')": {
+  "val_acc": 0.9267,
+  "n": 382,
+  "thresholds": {
+   "toilet": 0.4
+  }
+ },
+ "('fixture', 'sink_any')": {
+  "val_acc": 0.8329,
+  "n": 377,
+  "thresholds": {
+   "sink": 0.35
+  }
+ },
+ "('fixture', 'bath_or_shower')": {
+  "val_acc": 0.7159,
+  "n": 345,
+  "thresholds": {
+   "shower": 0.25,
+   "bathtub": 0.85
+  }
+ },
+ "('floor', None)": {
+  "val_acc": 0.9188,
+  "n": 382,
+  "thresholds": {
+   "floorplan": 0.4
+  }
+ },
+ "('room', 'bedroom')": {
+  "val_acc": 0.8755,
+  "n": 233,
+  "thresholds": {
+   "bedroom": 0.35
+  }
+ },
+ "('room', 'kitchen')": {
+  "val_acc": 0.938,
+  "n": 258,
+  "thresholds": {
+   "kitchen": 0.25
+  }
+ },
+ "('room', 'bathroom')": {
+  "val_acc": 0.8929,
+  "n": 168,
+  "thresholds": {
+   "bath": 0.35
+  }
+ },
+ "('room', 'wc')": {
+  "val_acc": 0.9085,
+  "n": 164,
+  "thresholds": {
+   "wc_room": 0.35
+  }
+ },
+ "('room', 'balcony')": {
+  "val_acc": 0.8741,
+  "n": 135,
+  "thresholds": {
+   "balcony": 0.1
+  }
+ },
+ "('room', 'sauna')": {
+  "val_acc": 0.9508,
+  "n": 264,
+  "thresholds": {
+   "sauna_stove": 0.35,
+   "sauna_room": 0.35
+  }
+ }
+}

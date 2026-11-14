@@ -21,9 +21,14 @@ from .questions import Query
 MODEL = "claude-opus-5-5"
 
 
+class Item(BaseModel):
+    label: str                         # short name for this number, e.g. "Apartment A" or "Bedrooms"
+    query: Query
+
+
 class Interpretation(BaseModel):
     understood: bool
-    query: Query | None = None
+    items: list[Item] = []             # one per number the question needs (comparisons, "X and Y")
     clarification: str | None = None   # what to ask the user when the question is ambiguous
     note: str | None = None            # how the question was read, in one short sentence
 
@@ -47,9 +52,14 @@ Query fields:
 - indoor_only: exclude balconies/terraces. exclude_shared: exclude stairwells/lifts.
 - height_m: only if the user states a wall height.
 
-Rules: "toilets" usually means WC fixtures (kind fixture, subtype wc). Material for a room's floor ->
+Rules: whenever the user names an apartment / unit / Wohnung / asunto, ALWAYS set `unit` to its letter, also
+for doors, windows and fixtures. In follow-up questions keep the filters of the previous question unless the
+user changes them. On Swiss plans bedrooms are labelled "Zimmer" (German), "Chambre" (French), "Camera" (Italian).
+"toilets" usually means WC fixtures (kind fixture, subtype wc). Material for a room's floor ->
 op area; for its walls -> op wall_area. If the question cannot be expressed with these fields, or names
 something not in the vocabulary, set understood=false and write a short clarification question.
+Return one item per number the question needs: "saunas and bedrooms" -> two items; "which apartment is
+biggest" -> one area item per apartment (the app compares them); at most 12 items. Give each a short label.
 Write `note` as one short sentence saying how you read the question."""
 
 
@@ -114,11 +124,24 @@ def _keyword(question: str, b: Building | None = None) -> Query | None:
     return q
 
 
+def warm_up():
+    """The first structured-output call compiles the response schema (slow, ~1-2 min); do it before users ask."""
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        return
+    import anthropic
+    try:
+        anthropic.Anthropic().messages.parse(model=MODEL, max_tokens=2000, system=SYSTEM, output_config={"effort": "low"},
+                                             messages=[{"role": "user", "content": "Building vocabulary:\nsource type: swiss_dxf\n\nQuestion: How many doors?"}],
+                                             output_format=Interpretation)
+    except Exception:
+        pass
+
+
 def interpret(b: Building, question: str, history: list[dict] | None = None) -> tuple[Interpretation, str]:
     """Returns (interpretation, interpreter name)."""
     if not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")):
         q = _keyword(question, b)
-        return (Interpretation(understood=q is not None, query=q,
+        return (Interpretation(understood=q is not None, items=[Item(label="Result", query=q)] if q else [],
                                clarification=None if q else "I could not map that to a takeoff query. Try e.g. "
                                "'How many doors?' or 'Total area of the bathrooms'.")), "keyword parser"
     import anthropic
@@ -131,9 +154,9 @@ def interpret(b: Building, question: str, history: list[dict] | None = None) -> 
                                   output_config={"effort": "low"}, output_format=Interpretation)
     except anthropic.APIError as ex:
         q = _keyword(question, b)
-        return Interpretation(understood=q is not None, query=q,
+        return Interpretation(understood=q is not None, items=[Item(label="Result", query=q)] if q else [],
                               note=f"Claude unavailable ({type(ex).__name__}); keyword parser used"), "keyword parser"
     if r.stop_reason == "refusal" or r.parsed_output is None:
         q = _keyword(question, b)
-        return Interpretation(understood=q is not None, query=q), "keyword parser"
+        return Interpretation(understood=q is not None, items=[Item(label="Result", query=q)] if q else []), "keyword parser"
     return r.parsed_output, MODEL

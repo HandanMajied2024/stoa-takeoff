@@ -445,26 +445,40 @@ async function ask(question) {
     S.history.push({ role: "assistant", content: res.message });
     return;
   }
-  const a = res.answer;
-  const unit = { count: "", m2: "m²", m3: "m³", m: "m" }[a.unit] ?? a.unit;
-  const conf = Math.round(a.confidence * 100);
-  const confTag = a.value == null ? `<span class="tag bad">needs a human</span>` :
-    conf >= 90 ? `<span class="tag good">${conf}% confidence</span>` : `<span class="tag warn">${conf}% confidence</span>`;
-  const q = Object.entries(res.query).map(([k, v]) => `<span>${esc(k)}=${esc(Array.isArray(v) ? v.join("|") : v)}</span>`).join("");
-  const els = a.elements.map((id) => S.index[id]).filter(Boolean);
-  pending.outerHTML = `<div class="msg-bot">
-    <div class="ans-value">${a.value == null ? "Can't tell" : esc(fmt(a.value))}<small>${esc(unit || (a.unit === "count" ? describeQuery(res.query) : ""))}</small></div>
-    <div class="ans-meta">${confTag}${a.flags.length ? `<span class="tag warn">${a.flags.length} to check</span>` : ""}
-      ${els.some((e) => e.polygon) ? `<button class="tag" data-show='${esc(JSON.stringify(a.elements))}'>Show on plan</button>` : ""}</div>
+  const results = res.results || [{ label: "Result", query: res.query, answer: res.answer }];
+  const unitOf = (a, q) => ({ count: "", m2: "m²", m3: "m³", m: "m" }[a.unit] ?? a.unit) || (a.unit === "count" ? describeQuery(q) : "");
+  const confTag = (a) => { const c = Math.round(a.confidence * 100);
+    return a.value == null ? `<span class="tag bad">needs a human</span>` : `<span class="tag ${c >= 90 ? "good" : "warn"}">${c}% confidence</span>`; };
+  const qchips = (q) => Object.entries(q).map(([k, v]) => `<span>${esc(k)}=${esc(Array.isArray(v) ? v.join("|") : v)}</span>`).join("");
+  const elsOf = (a) => a.elements.map((id) => S.index[id]).filter(Boolean);
+  const detail = (r) => { const a = r.answer, els = elsOf(a);
+    return `<h5>Question read as</h5><div class="qchips">${qchips(r.query)}</div>
+      <h5>Steps</h5><ol class="steps">${a.steps.map((x) => `<li>${esc(x)}</li>`).join("")}</ol>
+      ${els.length ? `<h5>Elements used (${els.length})</h5><div class="el-list">${els.slice(0, 120).map((e) => `<button data-el="${esc(e.id)}">${esc(e.name || e.number || e.subtype || e.id)}</button>`).join("")}${els.length > 120 ? `<span class="note">+${els.length - 120} more</span>` : ""}</div>` : ""}
+      ${a.flags.length ? `<h5>Check by a human</h5><ul class="flags">${a.flags.slice(0, 30).map((f) => `<li>${esc(f)}</li>`).join("")}</ul>` : ""}`; };
+  const allIds = [...new Set(results.flatMap((r) => r.answer.elements))];
+  const flags = results.reduce((n, r) => n + r.answer.flags.length, 0);
+  const showBtn = allIds.some((id) => S.index[id]?.polygon) ? `<button class="tag" data-show='${esc(JSON.stringify(allIds))}'>Show on plan</button>` : "";
+  let head;
+  if (results.length === 1) {
+    const r = results[0], a = r.answer;
+    head = `<div class="ans-value">${a.value == null ? "Can't tell" : esc(fmt(a.value))}<small>${esc(unitOf(a, r.query))}</small></div>
+      <div class="ans-meta">${confTag(a)}${flags ? `<span class="tag warn">${flags} to check</span>` : ""}${showBtn}</div>`;
+  } else {
+    const max = Math.max(...results.map((r) => r.answer.value || 0)) || 1;
+    head = `<div class="ans-rows">${results.map((r) => `<button class="ans-row" data-show='${esc(JSON.stringify(r.answer.elements))}'>
+        <span class="lbl">${esc(r.label)}</span><span class="val">${r.answer.value == null ? "–" : esc(fmt(r.answer.value))}<small>${esc(unitOf(r.answer, r.query))}</small></span>
+        <i class="bar" style="width:${Math.max(2, ((r.answer.value || 0) / max) * 100)}%"></i></button>`).join("")}</div>
+      <div class="ans-meta">${confTag({ value: 1, confidence: Math.min(...results.map((r) => r.answer.confidence)) })}${flags ? `<span class="tag warn">${flags} to check</span>` : ""}${showBtn}</div>`;
+  }
+  pending.outerHTML = `<div class="msg-bot">${head}
     ${res.note ? `<div class="note">${esc(res.note)}</div>` : ""}
     <details class="reason"><summary>How it was calculated</summary>
-      <h5>Question read as</h5><div class="qchips">${q}</div><div class="note">by ${esc(res.interpreter)}; the engine computed the number</div>
-      <h5>Steps</h5><ol class="steps">${a.steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol>
-      ${els.length ? `<h5>Elements used (${els.length})</h5><div class="el-list">${els.slice(0, 120).map((e) => `<button data-el="${esc(e.id)}">${esc(e.name || e.number || e.subtype || e.id)}</button>`).join("")}${els.length > 120 ? `<span class="note">+${els.length - 120} more</span>` : ""}</div>` : ""}
-      ${a.flags.length ? `<h5>Check by a human</h5><ul class="flags">${a.flags.slice(0, 30).map((f) => `<li>${esc(f)}</li>`).join("")}</ul>` : ""}
+      <div class="note">Read by ${esc(res.interpreter)}; every number computed by the engine from the drawing.</div>
+      ${results.length === 1 ? detail(results[0]) : results.map((r) => `<div class="sub-res"><h5 class="res-h">${esc(r.label)}</h5>${detail(r)}</div>`).join("")}
     </details></div>`;
-  S.history.push({ role: "assistant", content: `${fmt(a.value)} ${a.unit}` });
-  highlight(a.elements);
+  S.history.push({ role: "assistant", content: results.map((r) => `${r.label}: ${fmt(r.answer.value)} ${r.answer.unit}`).join("; ") });
+  highlight(allIds);
   box.scrollTop = box.scrollHeight;
 }
 function describeQuery(q) {

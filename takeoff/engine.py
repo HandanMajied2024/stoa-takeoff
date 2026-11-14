@@ -66,7 +66,7 @@ def run(b: Building, q: Query) -> Answer:
         steps.append(f"Rooms labelled {', '.join(sorted(want))}: {len(els)}")
     if q.unit:
         els = [e for e in els if e.unit == q.unit]
-        steps.append(f"In apartment {q.unit}: {len(els)} rooms")
+        steps.append(f"In apartment {q.unit}: {len(els)} {q.kind}{'s' if len(els) != 1 else ''}")
     if q.indoor_only:
         out = [e for e in els if _is_outdoor(e)]
         els = [e for e in els if not _is_outdoor(e) and not any(w in (e.name or "").lower() for w in NOT_NET)]

@@ -148,9 +148,31 @@ def reviews() -> dict[tuple[str, str], dict]:
     return out
 
 
+def assign_units(b: Building):
+    """Doors, windows and fixtures get the apartment whose outline they overlap most (geometry, not guessing).
+    An entrance door on the apartment boundary belongs to that apartment; a door between two corridors to none."""
+    units = [(e.name, Polygon(e.polygon).buffer(0.15)) for e in b.elements
+             if e.kind == "unit" and e.name and e.polygon and len(e.polygon) >= 3]
+    if not units:
+        return
+    for e in b.elements:
+        if e.kind in ("door", "window", "fixture") and not e.unit and e.polygon and len(e.polygon) >= 3:
+            g = Polygon(e.polygon)
+            if not g.is_valid:
+                g = g.buffer(0)
+            best = max(((u.intersection(g).area, name) for name, u in units), default=(0, None))
+            if best[0] > 0.3 * max(g.area, 1e-9):
+                e.unit = best[1]
+            elif e.kind == "window":  # windows sit in the outer wall, just outside the apartment outline
+                d = sorted((u.distance(g), name) for name, u in units)
+                if d and d[0][0] <= 0.5 and (len(d) == 1 or d[1][0] - d[0][0] > 0.3):
+                    e.unit = d[0][1]
+
+
 def apply(b: Building, drawing: str | None = None) -> Building:
     """Raw extracted building -> building with rules and human decisions applied (returns a copy)."""
     b = b.model_copy(deep=True)
+    assign_units(b)
     rules = [r for r in load_rules() if confidence(r) >= 0.5]
     fx = _fixtures(b)
     raw = {e.id: (e.kind, e.subtype, list(e.flags), e.confidence) for e in b.elements}

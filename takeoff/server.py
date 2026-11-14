@@ -46,6 +46,12 @@ _load_env()
 app = FastAPI(title="Stoa takeoff")
 
 
+@app.on_event("startup")
+def _warm_claude():
+    import threading
+    threading.Thread(target=llm.warm_up, daemon=True).start()
+
+
 def _rel(p: Path) -> str:
     return str(p)
 
@@ -213,16 +219,28 @@ def api_ask(req: Ask):
     _check(req.path)
     b = _building(req.path)
     interp, who = llm.interpret(b, req.question, req.history)
-    if not interp.understood or interp.query is None:
+    if not interp.understood or not interp.items:
         return {"understood": False, "message": interp.clarification or "I could not map that to a takeoff query.",
                 "interpreter": who}
-    q: Query = interp.query
-    # only a height the user changed counts as stated; the default stays a flagged assumption
-    if req.height_m and abs(req.height_m - engine.DEFAULT_HEIGHT_M) > 1e-6 and q.op == "wall_area" and not q.height_m:
-        q.height_m = req.height_m
-    a = engine.run(b, q)
-    return {"understood": True, "interpreter": who, "note": interp.note,
-            "query": q.model_dump(exclude_defaults=True), "answer": a.model_dump()}
+    # guard: an apartment named in the question must filter the query, even if the interpreter dropped it
+    units = {e.name for e in b.elements if e.kind == "unit" and e.name}
+    named = {m.group(2).upper() for m in APT.finditer(req.question)} & units
+    results = []
+    for it in interp.items[:12]:
+        q: Query = it.query
+        if len(named) == 1 and not q.unit and q.kind != "unit" and len(interp.items) == 1:
+            q.unit = next(iter(named))
+        # only a height the user changed counts as stated; the default stays a flagged assumption
+        if req.height_m and abs(req.height_m - engine.DEFAULT_HEIGHT_M) > 1e-6 and q.op == "wall_area" and not q.height_m:
+            q.height_m = req.height_m
+        a = engine.run(b, q)
+        results.append({"label": it.label, "query": q.model_dump(exclude_defaults=True), "answer": a.model_dump()})
+    first = results[0]
+    return {"understood": True, "interpreter": who, "note": interp.note, "results": results,
+            "query": first["query"], "answer": first["answer"]}
+
+
+APT = re.compile(r"\b(apartment|apt\.?|unit|wohnung|appartement|appartamento|asunto|asunnossa|asunnon|asunnolla)\s+([A-Za-z])\b", re.I)
 
 
 class Review(BaseModel):

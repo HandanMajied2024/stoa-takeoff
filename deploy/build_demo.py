@@ -67,8 +67,10 @@ def scrub(b, drawing_id: str):
 
 
 def main():
-    if OUT.exists():
-        shutil.rmtree(OUT)
+    if OUT.exists():  # rebuild, but keep the Vercel project link (.vercel)
+        for f in OUT.iterdir():
+            if f.name != ".vercel":
+                shutil.rmtree(f) if f.is_dir() else f.unlink()
     (OUT / "takeoff").mkdir(parents=True)
     for f in PY:
         shutil.copy(ROOT / "takeoff" / f, OUT / "takeoff" / f)

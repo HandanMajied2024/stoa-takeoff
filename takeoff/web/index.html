@@ -28,14 +28,14 @@
     </button>
     <div class="nav-label">Drawing</div>
     <nav class="nav" id="nav">
-      <button class="nav-item active" data-view="plan"><i data-icon="map"></i><span>Plan</span></button>
-      <button class="nav-item" data-view="3d"><i data-icon="box"></i><span>3D model</span></button>
-      <button class="nav-item" data-view="takeoff"><i data-icon="list"></i><span>Takeoff</span></button>
-      <button class="nav-item" data-view="review"><i data-icon="check"></i><span>Review</span><b class="count" id="review-badge">0</b></button>
-      <button class="nav-item" data-view="rules"><i data-icon="sparkles"></i><span>Learned rules</span><b class="count muted" id="rules-badge">0</b></button>
+      <button class="nav-item active" data-view="plan" title="Plan"><i data-icon="map"></i><span>Plan</span></button>
+      <button class="nav-item" data-view="3d" title="3D model"><i data-icon="box"></i><span>3D model</span></button>
+      <button class="nav-item" data-view="takeoff" title="Takeoff"><i data-icon="list"></i><span>Takeoff</span></button>
+      <button class="nav-item" data-view="review" title="Review"><i data-icon="check"></i><span>Review</span><b class="count" id="review-badge">0</b></button>
+      <button class="nav-item" data-view="rules" title="Learned rules"><i data-icon="sparkles"></i><span>Learned rules</span><b class="count muted" id="rules-badge">0</b></button>
     </nav>
     <div class="grow"></div>
-    <label class="nav-item import"><i data-icon="upload"></i><span>Import drawing</span>
+    <label class="nav-item import" title="Import drawing"><i data-icon="upload"></i><span>Import drawing</span>
       <input id="upload" type="file" accept=".png,.jpg,.jpeg,.pdf,.dxf,.ifc" hidden></label>
     <div class="sidebar-foot"><span class="dot" id="interp-dot"></span><span id="interp-pill">Chat: keyword parser</span></div>
   </aside>
@@ -76,6 +76,7 @@
           <div id="plan-empty" class="empty">Pick a drawing, or import one.</div>
           <div id="plan-loading" class="loading hidden"><div class="spinner"></div><span>Reading drawing…</span></div>
           <div id="inspector" class="inspector hidden"></div>
+          <button class="back-pill hidden" id="back-pill">← Back to answer</button>
         </div>
         <div id="three-view" class="pane hidden"><div id="three-canvas"></div></div>
         <div id="takeoff" class="pane scroll hidden"></div>

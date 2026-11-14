@@ -100,10 +100,11 @@ export function create(container, onPick) {
     // frame the model
     const box = new THREE.Box3().setFromObject(root);
     const c = box.getCenter(new THREE.Vector3()), size = box.getSize(new THREE.Vector3()).length() || 10;
-    controls.target.copy(c);
-    camera.position.set(c.x + size * 0.45, c.y + size * 0.65, c.z + size * 0.6);
-    camera.near = size / 1000; camera.far = size * 20; camera.updateProjectionMatrix();
     resize();
+    controls.target.copy(c);
+    const k = camera.aspect < 1 ? Math.min(2.2, 1 / camera.aspect) : 1;  // portrait phone: step back so the model fits
+    camera.position.set(c.x + size * 0.45 * k, c.y + size * 0.65 * k, c.z + size * 0.6 * k);
+    camera.near = size / 1000; camera.far = size * 40; camera.updateProjectionMatrix();
   }
 
   function highlight(ids) {

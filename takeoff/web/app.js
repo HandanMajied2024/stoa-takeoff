@@ -303,7 +303,7 @@ function highlight(ids, zoom = false) {
   applyHighlight();
   if (zoom) {
     const pts = ids.map((i) => S.index[i]).filter((e) => e?.polygon).flatMap((e) => e.polygon.map(pt));
-    if (pts.length) fitView(pts);
+    if (pts.length) requestAnimationFrame(() => fitView(pts));  // after a view switch the plan has just become visible
   }
 }
 
@@ -342,7 +342,8 @@ async function setView(v) {
   if (v === "chat" && !isPhone()) { $("#ask-input").focus(); return; }
   $("#app").dataset.view = v;
   $$(".nav-item[data-view], .bottom-nav button").forEach((b) => b.classList.toggle("active", b.dataset.view === v));
-  if (v === "chat") return;
+  if (v !== "plan") $("#back-pill").classList.add("hidden");
+  if (v === "chat") { requestAnimationFrame(() => { const m = $("#messages"); m.scrollTop = m.scrollHeight; }); return; }
   for (const [k, sel] of Object.entries(PANES)) $(sel).classList.toggle("hidden", k !== v);
   $("#view-title").textContent = VIEWS[v][0];
   $("#view-sub").textContent = VIEWS[v][1];
@@ -359,7 +360,13 @@ async function setView(v) {
     S.three.highlight(S.hl);
   }
 }
-const showOnPlan = () => { if ($("#app").dataset.view !== "plan") setView("plan"); };
+// on a phone, jumping from an answer to the plan leaves a pill to jump back
+const showOnPlan = () => {
+  const from = $("#app").dataset.view;
+  if (from !== "plan") setView("plan");
+  $("#back-pill").classList.toggle("hidden", !(isPhone() && from === "chat"));
+};
+$("#back-pill").addEventListener("click", () => { $("#back-pill").classList.add("hidden"); setView("chat"); });
 $$(".nav-item[data-view], .bottom-nav button").forEach((b) => b.addEventListener("click", () => setView(b.dataset.view)));
 $("#height").addEventListener("change", () => S.three && S.b && S.three.load(S.b, S.bg, Number($("#height").value)));
 

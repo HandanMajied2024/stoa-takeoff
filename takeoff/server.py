@@ -30,6 +30,19 @@ UPLOADS = ROOT / "data_cache" / "uploads"
 WEB = Path(__file__).resolve().parent / "web"
 
 faulthandler.register(signal.SIGUSR1)  # `kill -USR1 <pid>` dumps all thread stacks
+
+
+def _load_env(path: Path = ROOT / ".env"):
+    """KEY=VALUE lines from a private, git-ignored .env (e.g. ANTHROPIC_API_KEY). Real env vars win."""
+    import os
+    if path.exists():
+        for line in path.read_text().splitlines():
+            k, sep, v = line.strip().partition("=")
+            if sep and k and not k.startswith("#"):
+                os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+
+
+_load_env()
 app = FastAPI(title="Stoa takeoff")
 
 
